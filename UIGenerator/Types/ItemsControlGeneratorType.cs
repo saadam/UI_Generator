@@ -29,6 +29,8 @@ namespace EmptyKeys.UserInterface.Generator.Types
             }
         }
 
+        static int uniqueId;
+
         /// <summary>
         /// Generates code
         /// </summary>
@@ -71,7 +73,7 @@ namespace EmptyKeys.UserInterface.Generator.Types
                     }
                     else
                     {
-                        itemExpr = valueGenerator.ProcessGenerators(classType, itemsMethod, item, itemsControl.Name);
+                        itemExpr = valueGenerator.ProcessGenerators(classType, itemsMethod, item, itemsControl.Name + "v" + uniqueId);
                     }
 
                     if (itemExpr != null)
@@ -83,6 +85,8 @@ namespace EmptyKeys.UserInterface.Generator.Types
                     {
                         CodeComHelper.GenerateError(itemsMethod, string.Format("Type {0} in Items Control collection not supported", itemType.Name));
                     }
+
+                    uniqueId++;
                 }
 
                 CodeMethodReturnStatement returnStatement = new CodeMethodReturnStatement(itemsVar);

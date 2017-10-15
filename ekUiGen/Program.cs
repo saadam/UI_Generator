@@ -135,6 +135,20 @@ namespace ekUiGen
                 header = File.ReadAllText(headerFile);
             }
 
+            //try to load assemblies
+            //TODO parameter for specifying assemblies
+            foreach (var file in Directory.EnumerateFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.dll", SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    AppDomain.CurrentDomain.Load(Path.GetFileNameWithoutExtension(file));
+                }
+                catch (Exception ex)
+                {
+
+                }
+            }
+
             BindingGenerator.Instance.IsEnabled = generateBindings;
 
             foreach (var file in Directory.EnumerateFiles(inputDirectory, "*.xaml", SearchOption.AllDirectories))

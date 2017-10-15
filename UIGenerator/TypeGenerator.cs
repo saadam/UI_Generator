@@ -263,6 +263,16 @@ namespace EmptyKeys.UserInterface.Generator
                 elementType = typeof(CustomUserControlGeneratorType);
             }
 
+            if (!Generators.TryGetValue(elementType, out generator))
+            {
+                //skusim vytvorit generator cez reflexiu
+                IGeneratorType reflectedGenerator = CreateGeneratorFromReflection(elementType);
+                if (reflectedGenerator != null)
+                {
+                    Generators.Add(elementType, reflectedGenerator);
+                }
+            }
+
             if (Generators.TryGetValue(elementType, out generator))
             {
                 DependencyObject xamlSource = source as DependencyObject;
@@ -332,6 +342,124 @@ namespace EmptyKeys.UserInterface.Generator
             method.Statements.Add(error);
 
             return null;
+        }
+
+        private IGeneratorType CreateGeneratorFromReflection(Type elementType)
+        {
+            if(!elementType.IsEnum && !elementType.IsValueType)
+            {
+                return new ReflectionCodeGenerator(elementType);
+            }
+            return null;
+        }
+
+
+    }
+
+
+
+    internal class ReflectionCodeGenerator : IGeneratorType
+    {
+        private static int nameUniqueId;
+
+        internal ReflectionCodeGenerator(Type forType)
+        {
+            XamlType = forType;
+        }
+
+        public Type XamlType
+        {
+            get;
+            private set;
+        }
+
+        public IEnumerable GetChildren(DependencyObject source)
+        {
+            return null;
+        }
+
+        public CodeExpression Generate(DependencyObject source, CodeTypeDeclaration classType, CodeMemberMethod method, bool generateField)
+        {
+            FrameworkElement element = source as FrameworkElement;
+            string typeName = element.GetType().Name;
+
+            if (string.IsNullOrEmpty(element.Name))
+            {
+                element.Name = "e_" + nameUniqueId;
+                nameUniqueId++;
+            }
+
+            if (generateField)
+            {
+                CodeMemberField field = new CodeMemberField(typeName, element.Name);
+                classType.Members.Add(field);
+            }
+
+            CodeComment comment = new CodeComment(element.Name + " element");
+            method.Statements.Add(new CodeCommentStatement(comment));
+
+            CodeExpression fieldReference = null;
+            if (!generateField)
+            {
+                fieldReference = new CodeVariableReferenceExpression(element.Name);
+                CodeTypeReference variableType = new CodeTypeReference(typeName);
+                CodeVariableDeclarationStatement declaration = new CodeVariableDeclarationStatement(variableType, element.Name);
+                declaration.InitExpression = new CodeObjectCreateExpression(typeName);
+                method.Statements.Add(declaration);
+            }
+            else
+            {
+                fieldReference = new CodeFieldReferenceExpression(new CodeThisReferenceExpression(), element.Name);
+                method.Statements.Add(new CodeAssignStatement(fieldReference, new CodeObjectCreateExpression(typeName)));
+            }
+
+            //var refExpr2 = new CodeObjectCreateExpression(ValueType, new CodeExpression[] { });
+            //CodeVariableDeclarationStatement variable = new CodeVariableDeclarationStatement(
+            //        ValueType, baseName, refExpr2
+            //        );
+            //method.Statements.Add(variable);
+
+            //var refExpr = new CodeVariableReferenceExpression(baseName);
+
+            throw new NotImplementedException("TODO");
+            return null;
+
+            /*foreach (var pi in ValueType.GetProperties())
+            {
+                var getM = pi.GetGetMethod();
+
+                if (getM.GetParameters().Length == 0 && pi.GetSetMethod() != null)
+                {
+                    object o = getM.Invoke(value, new object[] { });
+                    CodeComHelper.GenerateField(method, fieldReference, pi.Name, o);
+                }
+            }
+
+
+
+            return refExpr;*/
+            /*
+
+            var properties = XamlType.GetProperties();
+
+            foreach (var pi in properties)
+            {
+                if (pi.PropertyType == typeof(String))
+                {
+                    CodeComHelper.GenerateField(method, fieldReference, pi.Name, "");
+                }
+                else if (pi.PropertyType == typeof(decimal))
+                {
+                    CodeComHelper.GenerateField(method, fieldReference, pi.Name, (decimal)0);
+                }
+            }*/
+
+            return fieldReference;
+        }
+
+        public void AddChild(CodeExpression parent, CodeExpression child, CodeMemberMethod method, int index)
+        {
+            //
         }
     }
 }

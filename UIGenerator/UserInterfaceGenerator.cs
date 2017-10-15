@@ -42,7 +42,7 @@ namespace EmptyKeys.UserInterface.Generator
         /// <returns></returns>
         public string GenerateCode(string inputFileName, string inputFileContent, RenderMode renderMode, string desiredNamespace, string header)
         {
-            inputFileContent = RemoveClass(inputFileContent);
+            inputFileContent = RemoveClassAndAddAssembly(inputFileContent);
 
             var parserContext = new ParserContext
             {
@@ -188,7 +188,7 @@ namespace EmptyKeys.UserInterface.Generator
             return resultCode;
         }
 
-        private string RemoveClass(string inputFileContent)
+        /*private string RemoveClass(string inputFileContent)
         {
             XmlDocument xml = new XmlDocument();
             xml.LoadXml(inputFileContent);
@@ -199,7 +199,96 @@ namespace EmptyKeys.UserInterface.Generator
             }
 
             return xml.OuterXml;
+        }*/
+
+        private string FindAssemblyForNamespace(string nameSpace)
+        {
+            HashSet<string> namespaceVariations = new HashSet<string>();
+
+            var names = nameSpace.Split(new char[] { '.' });
+
+            string lastName = "";
+
+            foreach (var n in names)
+            {
+                if (lastName != "") { lastName += "."; }
+
+                lastName += n;
+
+                namespaceVariations.Add(lastName);
+            }
+
+
+            foreach (var ass in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                string simpleName = ass.FullName.Split(new char[] { ',' })[0];
+                if (namespaceVariations.Contains(simpleName))
+                {
+                    return simpleName;
+                }
+            }
+
+            return null;
         }
+
+
+        private string RemoveClassAndAddAssembly(string inputFileContent)
+        {
+            XmlDocument xml = new XmlDocument();
+            xml.LoadXml(inputFileContent);
+
+            if (xml.DocumentElement.Attributes["x:Class"] != null)
+            {
+                xml.DocumentElement.Attributes.Remove(xml.DocumentElement.Attributes["x:Class"]);
+            }
+
+            Dictionary<string, string> namespaceToAssembly = new Dictionary<string, string>();
+
+            //find attribute with empty assembly
+
+            Dictionary<string, string> toBeReplaced = new Dictionary<string, string>();
+
+            foreach (XmlAttribute attr in xml.DocumentElement.Attributes)
+            {
+                if (attr.Name.StartsWith("xmlns") && !attr.InnerText.Contains("http://") && !attr.InnerText.Contains("assembly"))
+                {
+                    string nameSpace = ExtractNamespaceFromXmlNs(attr.InnerText);
+                    string assemblyName = "";
+                    if (namespaceToAssembly.ContainsKey(nameSpace))
+                    { assemblyName = namespaceToAssembly[nameSpace]; }
+                    else
+                    {
+                        assemblyName = FindAssemblyForNamespace(nameSpace);
+                        namespaceToAssembly.Add(nameSpace, assemblyName);
+                    }
+
+                    if (assemblyName != null)
+                    {
+                        var text = attr.InnerText + ";assembly=" + assemblyName;
+                        toBeReplaced.Add(attr.Name + "=\"" + attr.InnerText + "\"", attr.Name + "=\"" + text + "\"");
+                        xml.DocumentElement.SetAttribute(attr.Name, text);
+                    }
+                }
+            }
+
+            StringBuilder s = new StringBuilder(xml.OuterXml);
+
+            foreach (var i in toBeReplaced)
+            {
+                s = s.Replace(i.Key, i.Value);
+            }
+
+            return s.ToString();
+        }
+
+        static string ExtractNamespaceFromXmlNs(string p)
+        {
+            var chars = p.Split(new char[] { ':' });
+            if (chars.Length == 2) return chars[1];
+
+            return chars[0];
+        }
+
 
         private CodeMemberMethod CreateDictionaryClass(CodeNamespace ns, CodeTypeDeclaration classType)
         {

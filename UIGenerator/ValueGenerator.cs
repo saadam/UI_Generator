@@ -175,15 +175,63 @@ namespace EmptyKeys.UserInterface.Generator
             }
             else
             {
-                valueExpression = new CodePrimitiveExpression("NOT SUPPORTED!");
+                //try reflection
+                var gen = new ReflectionValueGenerator(valueType);
+                Generators.Add(valueType, gen);
+                valueExpression = gen.Generate(parentClass, method, value, baseName, dictionary);
+
+
+                /*valueExpression = new CodePrimitiveExpression("NOT SUPPORTED!");
                 string errorText = string.Format("Type {0} not supported", valueType.Name);
                 Console.WriteLine(errorText);
 
                 CodeSnippetStatement error = new CodeSnippetStatement("#error " + errorText);
-                method.Statements.Add(error);
+                method.Statements.Add(error);*/
             }
 
             return valueExpression;
         }
     }
+
+    internal class ReflectionValueGenerator : IGeneratorValue
+    {
+
+        internal ReflectionValueGenerator(Type forType)
+        {
+            ValueType = forType;
+        }
+
+        public Type ValueType
+        {
+            get;
+            private set; 
+        }
+
+        public CodeExpression Generate(CodeTypeDeclaration parentClass, CodeMemberMethod method, object value, string baseName, ResourceDictionary dictionary = null)
+        {
+             var refExpr2 = new CodeObjectCreateExpression(ValueType,new CodeExpression[] { });
+            CodeVariableDeclarationStatement variable = new CodeVariableDeclarationStatement(
+                    ValueType, baseName, refExpr2
+                    );
+            method.Statements.Add(variable);
+
+            var refExpr =  new CodeVariableReferenceExpression(baseName);
+
+            foreach(var pi in ValueType.GetProperties())
+            {
+                var getM = pi.GetGetMethod();
+
+                if (getM.GetParameters().Length == 0 && pi.GetSetMethod() != null)
+                {
+                    object o = getM.Invoke(value, new object[] { });
+                    CodeComHelper.GenerateFieldNonGeneric(method, refExpr, pi.Name, o);
+                }
+            }
+
+
+
+            return refExpr;
+        }
+    }
+
 }
